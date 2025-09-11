@@ -30,16 +30,26 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       
-      # GCP OIDC認証（シークレットが設定されている場合のみ）
+      # GCP認証情報チェック
+      - name: Check GCP credentials
+        id: gcp-check
+        run: |
+          if [[ -n "${{ secrets.GCP_WIF_PROVIDER }}" ]]; then
+            echo "gcp_configured=true" >> $GITHUB_OUTPUT
+          else
+            echo "gcp_configured=false" >> $GITHUB_OUTPUT
+          fi
+      
+      # GCP OIDC認証（設定済みの場合のみ）
       - name: Authenticate to Google Cloud
-        if: ${{ secrets.GCP_WIF_PROVIDER != '' }}
+        if: steps.gcp-check.outputs.gcp_configured == 'true'
         uses: google-github-actions/auth@v2
         with:
           workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
           service_account: ${{ secrets.GCP_SA }}
       
       - name: Set up Cloud SDK
-        if: ${{ secrets.GCP_WIF_PROVIDER != '' }}
+        if: steps.gcp-check.outputs.gcp_configured == 'true'
         uses: google-github-actions/setup-gcloud@v2
       
       # 推奨: digest固定でデプロイ
@@ -62,7 +72,7 @@ jobs:
       
       # digest固定でデプロイ（GCP設定済みの場合のみ）
       - name: Deploy to Cloud Run
-        if: ${{ secrets.GCP_WIF_PROVIDER != '' }}
+        if: steps.gcp-check.outputs.gcp_configured == 'true'
         run: |
           gcloud run deploy svc-dev \
             --image=ghcr.io/7lycka/sre-workflow@${{ steps.digest.outputs.digest }} \
@@ -71,7 +81,7 @@ jobs:
             --quiet
       
       - name: Get service URL
-        if: ${{ secrets.GCP_WIF_PROVIDER != '' }}
+        if: steps.gcp-check.outputs.gcp_configured == 'true'
         run: |
           URL=$(gcloud run services describe svc-dev \
             --region=asia-northeast1 \
@@ -80,7 +90,7 @@ jobs:
       
       # スモークテスト + 自動ロールバック（GCP設定済みの場合のみ）
       - name: Smoke test with auto-rollback
-        if: ${{ secrets.GCP_WIF_PROVIDER != '' }}
+        if: steps.gcp-check.outputs.gcp_configured == 'true'
         run: |
           echo "Testing health endpoint: $SERVICE_URL/health"
           if ! curl -fsS "$SERVICE_URL/health"; then
@@ -102,7 +112,7 @@ jobs:
       
       # GCP未設定の場合のスキップメッセージ
       - name: Skip deployment (GCP not configured)
-        if: ${{ secrets.GCP_WIF_PROVIDER == '' }}
+        if: steps.gcp-check.outputs.gcp_configured == 'false'
         run: |
           echo "::notice::GCP認証情報が設定されていないため、デプロイをスキップしました"
           echo "本番環境でGCP_WIF_PROVIDERとGCP_SAシークレットを設定してください"
