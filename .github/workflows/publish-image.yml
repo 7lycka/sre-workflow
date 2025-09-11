@@ -31,7 +31,7 @@ jobs:
     
     # 他ジョブ（deploy）への出力定義
     outputs:
-      digest: ${{ steps.digest.outputs.digest }}    # イメージダイジェスト
+      digest: ${{ steps.build.outputs.digest }}    # イメージダイジェスト
     
     steps:
       # ===============================================================
@@ -57,26 +57,24 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}       # 自動生成トークン
       
       # ===============================================================
-      # イメージビルド・プッシュ
+      # イメージビルド・プッシュ（ダイジェスト取得統合）
       # ===============================================================
       - name: Build and push image
+        id: build
         run: |
+          # イメージビルド
           docker build -t ghcr.io/7lycka/sre-workflow:${{ github.sha }} .
+          
+          # イメージプッシュしてダイジェスト取得
           docker push ghcr.io/7lycka/sre-workflow:${{ github.sha }}
-        # sha タグ: コミットハッシュでバージョン管理
-        # 不変性: 同じタグは常に同じ内容を保証
-      
-      # ===============================================================
-      # イメージダイジェスト取得（セキュリティ重要）
-      # ===============================================================
-      - name: Get image digest
-        id: digest
-        run: |
-          digest=$(docker buildx imagetools inspect ghcr.io/7lycka/sre-workflow:${{ github.sha }} | awk '/Digest: sha256/ {print $2; exit}')
+          
+          # プッシュ後にダイジェストを確実に取得
+          digest=$(docker buildx imagetools inspect ghcr.io/7lycka/sre-workflow:${{ github.sha }} --format '{{.Manifest.Digest}}')
           echo "digest=$digest" >> $GITHUB_OUTPUT
           echo "Image digest: $digest"
-        # ダイジェスト: イメージ内容のハッシュ値
-        # 目的: タグ変更攻撃を防ぐ、完全性保証
+        # sha タグ: コミットハッシュでバージョン管理
+        # 不変性: 同じタグは常に同じ内容を保証
+        # ダイジェスト: プッシュ後の確実な取得方法使用
       
       # ===============================================================
       # Cosignインストール（コンテナ署名ツール）
@@ -90,7 +88,7 @@ jobs:
       # コンテナイメージ署名
       # ===============================================================
       - name: Sign container image
-        run: cosign sign --yes ghcr.io/7lycka/sre-workflow@${{ steps.digest.outputs.digest }}
+        run: cosign sign --yes ghcr.io/7lycka/sre-workflow@${{ steps.build.outputs.digest }}
         # @digest 指定: ダイジェストによる確実な対象指定
         # --yes: 非対話モード（CI環境用）
         # OIDC認証: GitHub ActionsのOIDCトークンで署名
@@ -112,7 +110,7 @@ jobs:
         run: |
           cosign attest --yes \
             --predicate sbom.spdx.json --type spdx \
-            ghcr.io/7lycka/sre-workflow@${{ steps.digest.outputs.digest }}
+            ghcr.io/7lycka/sre-workflow@${{ steps.build.outputs.digest }}
         # attest: 証明書としてSBOMをイメージに添付
         # predicate: 証明する内容（SBOM）
         # type spdx: SPDX形式のSBOM
