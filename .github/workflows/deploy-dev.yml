@@ -18,12 +18,10 @@ jobs:
   deploy:
     name: Deploy to Cloud Run Dev
     runs-on: ubuntu-latest
-    # 修正: 条件式でmain限定 + head_sha参照 + GCPシークレット確認
+    # 修正: 条件式でmain限定 + head_sha参照（GCPシークレットは後でチェック）
     if: |
       github.event.workflow_run.conclusion == 'success' &&
-      github.event.workflow_run.head_branch == 'main' &&
-      github.repository == '7lycka/sre-workflow' &&
-      secrets.GCP_WIF_PROVIDER != ''
+      github.event.workflow_run.head_branch == 'main'
     
     env:
       # 修正: workflow_runのhead_shaを参照
@@ -32,14 +30,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       
-      # GCP OIDC認証
+      # GCP OIDC認証（シークレットが設定されている場合のみ）
       - name: Authenticate to Google Cloud
+        if: ${{ secrets.GCP_WIF_PROVIDER != '' }}
         uses: google-github-actions/auth@v2
         with:
           workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
           service_account: ${{ secrets.GCP_SA }}
       
       - name: Set up Cloud SDK
+        if: ${{ secrets.GCP_WIF_PROVIDER != '' }}
         uses: google-github-actions/setup-gcloud@v2
       
       # 推奨: digest固定でデプロイ
@@ -60,8 +60,9 @@ jobs:
           echo "digest=$digest" >> $GITHUB_OUTPUT
           echo "Resolved digest: $digest"
       
-      # digest固定でデプロイ
+      # digest固定でデプロイ（GCP設定済みの場合のみ）
       - name: Deploy to Cloud Run
+        if: ${{ secrets.GCP_WIF_PROVIDER != '' }}
         run: |
           gcloud run deploy svc-dev \
             --image=ghcr.io/7lycka/sre-workflow@${{ steps.digest.outputs.digest }} \
@@ -70,14 +71,16 @@ jobs:
             --quiet
       
       - name: Get service URL
+        if: ${{ secrets.GCP_WIF_PROVIDER != '' }}
         run: |
           URL=$(gcloud run services describe svc-dev \
             --region=asia-northeast1 \
             --format='value(status.url)')
           echo "SERVICE_URL=$URL" >> $GITHUB_ENV
       
-      # スモークテスト + 自動ロールバック
+      # スモークテスト + 自動ロールバック（GCP設定済みの場合のみ）
       - name: Smoke test with auto-rollback
+        if: ${{ secrets.GCP_WIF_PROVIDER != '' }}
         run: |
           echo "Testing health endpoint: $SERVICE_URL/health"
           if ! curl -fsS "$SERVICE_URL/health"; then
@@ -96,3 +99,10 @@ jobs:
             exit 1
           fi
           echo "Health check passed!"
+      
+      # GCP未設定の場合のスキップメッセージ
+      - name: Skip deployment (GCP not configured)
+        if: ${{ secrets.GCP_WIF_PROVIDER == '' }}
+        run: |
+          echo "::notice::GCP認証情報が設定されていないため、デプロイをスキップしました"
+          echo "本番環境でGCP_WIF_PROVIDERとGCP_SAシークレットを設定してください"
