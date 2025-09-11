@@ -18,10 +18,12 @@ jobs:
   deploy:
     name: Deploy to Cloud Run Dev
     runs-on: ubuntu-latest
-    # 修正: 条件式でmain限定 + head_sha参照
+    # 修正: 条件式でmain限定 + head_sha参照 + GCPシークレット確認
     if: |
       github.event.workflow_run.conclusion == 'success' &&
-      github.event.workflow_run.head_branch == 'main'
+      github.event.workflow_run.head_branch == 'main' &&
+      github.repository == '7lycka/sre-workflow' &&
+      secrets.GCP_WIF_PROVIDER != ''
     
     env:
       # 修正: workflow_runのhead_shaを参照
