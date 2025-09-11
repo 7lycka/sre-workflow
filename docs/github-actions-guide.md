@@ -217,10 +217,10 @@ permissions:
 
 ### 3. シークレット管理
 ```yaml
-# ❌ 悪い例
+# 悪い例
 - run: echo ${{ secrets.PASSWORD }}
 
-# ✅ 良い例  
+# 良い例  
 - run: deploy.sh
   env:
     PASSWORD: ${{ secrets.PASSWORD }}
@@ -244,12 +244,12 @@ Dependencies lock file is not found
 
 #### 3. workflow_run が動かない
 ```yaml
-# ❌ これは動かない
+# これは動かない
 on:
   workflow_run:
     branches: [main]
 
-# ✅ 正しい書き方
+# 正しい書き方
 jobs:
   deploy:
     if: github.event.workflow_run.head_branch == 'main'
