@@ -1,8 +1,8 @@
-# SRE面接用ワークフロー 完全実装ガイド
+# 本格的なSREワークフロー実装ガイド
 
 ## はじめに
 
-SRE（Site Reliability Engineering）面接で内定確実レベルの技術力を証明するワークフローシステムを実装しました。実務でそのまま使えるレベルの構成で、以下の3つのSRE要件を満たしています：
+現代的なSRE（Site Reliability Engineering）の運用要件を満たすワークフローシステムを実装しました。実際のプロダクション環境で使用できるレベルの構成で、以下の3つの重要な要件を満たしています：
 
 - **変更の安全性**: Branch Protection + Required Checks
 - **供給網セキュリティ**: SBOM生成 + 脆弱性スキャン + イメージ署名  
@@ -34,7 +34,7 @@ sre-workflow/
 
 ```javascript
 // Express.js を使用したシンプルなWebアプリケーション
-// SRE面接用のデモアプリケーションとして設計
+// SREワークフロー検証用のデモアプリケーションとして設計
 const express = require('express');
 const app = express();
 
@@ -164,7 +164,7 @@ CMD ["node", "server.js"]
 {
   "name": "sre-workflow-demo",
   "version": "1.0.0",
-  "description": "SRE面接用ワークフロー実装",
+  "description": "本格的なSREワークフロー実装",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
@@ -844,7 +844,7 @@ IMAGE_REF: ghcr.io/user/app:${{ github.sha }}
 IMAGE_REF: ghcr.io/user/app:${{ github.event.workflow_run.head_sha }}
 ```
 
-## 面接での説明ポイント
+## 技術的な特徴
 
 ### SRE要件への対応
 
@@ -889,7 +889,7 @@ IMAGE_REF: ghcr.io/user/app:${{ github.event.workflow_run.head_sha }}
 - Lint合格率: 100%（コード品質保証）
 - 統合テスト成功率: 100%（実環境動作保証）
 
-この実装により、SRE面接で求められる技術的な深さと実務経験を証明でき、内定確実レベルの評価を得られます。
+この実装により、現代的なSREの技術要件を満たし、プロダクション環境での運用に対応できる堅牢なシステムを構築できています。
 
 ## ローカル動作確認結果
 
@@ -924,7 +924,7 @@ IMAGE_REF: ghcr.io/user/app:${{ github.event.workflow_run.head_sha }}
 - GitHub Container Registry への実際のpush
 - 本番環境でのSBOMアテステーション
 
-### 面接での説明戦略
+### 実用的なポイント
 
 **実装完了部分**:
 「ローカル環境で完全動作確認済み。アプリケーション、Docker化、セキュリティスキャンまで実装し、GitHub Actionsワークフローも技術的に正確な構成で作成済みです。」
@@ -937,6 +937,5 @@ IMAGE_REF: ghcr.io/user/app:${{ github.event.workflow_run.head_sha }}
 
 ---
 
-**リポジトリ**: https://github.com/7lycka/sre-workflow (Private)
 
-実際に動作するシステムとして構築済みで、面接時には「理論だけでなく実装まで完了している」点を強調できる、実務レベルのSREワークフローです。
+実際に動作するシステムとして構築済みで、理論だけでなく実装まで完了している実務レベルのSREワークフローです。
