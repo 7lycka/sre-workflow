@@ -1,60 +1,119 @@
+# =============================================================================
+# イメージ公開・署名ワークフロー
+# =============================================================================
+# 目的: セキュアなコンテナイメージ公開と署名
+# 実行タイミング: mainブランチプッシュ時
+# SRE要件: 供給網セキュリティ（署名・改ざん防止）
 name: Publish Image
+
+# =============================================================================
+# トリガー設定: mainブランチへのプッシュのみ
+# =============================================================================
 on:
   push:
-    branches: [main]
+    branches: [main]    # 本番リリース用ブランチのみ
 
+# =============================================================================
+# 権限設定: イメージ公開と署名に必要な権限
+# =============================================================================
 permissions:
-  contents: read
-  packages: write
-  id-token: write    # 修正: 署名をここで実行
+  contents: read      # ソースコード読み取り
+  packages: write     # GitHub Container Registry書き込み
+  id-token: write     # OIDC認証（Cosign署名用）
 
+# =============================================================================
+# ジョブ定義: ビルド・公開・署名
+# =============================================================================
 jobs:
   publish:
-    name: Build, Publish & Sign Image
-    runs-on: ubuntu-latest
+    name: Build, Publish & Sign Image    # 画面表示名
+    runs-on: ubuntu-latest                # 実行環境
+    
+    # 他ジョブ（deploy）への出力定義
     outputs:
-      digest: ${{ steps.digest.outputs.digest }}
+      digest: ${{ steps.digest.outputs.digest }}    # イメージダイジェスト
+    
     steps:
+      # ===============================================================
+      # ソースコード取得
+      # ===============================================================
       - uses: actions/checkout@v4
       
+      # ===============================================================
+      # Docker環境セットアップ
+      # ===============================================================
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
+        # Buildx: マルチプラットフォームビルド対応
       
+      # ===============================================================
+      # コンテナレジストリ認証
+      # ===============================================================
       - name: Login to GitHub Container Registry
         uses: docker/login-action@v3
         with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          registry: ghcr.io                           # GitHub Container Registry
+          username: ${{ github.actor }}               # 実行者のGitHubユーザー名
+          password: ${{ secrets.GITHUB_TOKEN }}       # 自動生成トークン
       
+      # ===============================================================
+      # イメージビルド・プッシュ
+      # ===============================================================
       - name: Build and push image
         run: |
           docker build -t ghcr.io/7lycka/sre-workflow:${{ github.sha }} .
           docker push ghcr.io/7lycka/sre-workflow:${{ github.sha }}
+        # sha タグ: コミットハッシュでバージョン管理
+        # 不変性: 同じタグは常に同じ内容を保証
       
-      # ダイジェスト取得
+      # ===============================================================
+      # イメージダイジェスト取得（セキュリティ重要）
+      # ===============================================================
       - name: Get image digest
         id: digest
         run: |
           digest=$(docker buildx imagetools inspect ghcr.io/7lycka/sre-workflow:${{ github.sha }} | awk '/Digest: sha256/ {print $2; exit}')
           echo "digest=$digest" >> $GITHUB_OUTPUT
           echo "Image digest: $digest"
+        # ダイジェスト: イメージ内容のハッシュ値
+        # 目的: タグ変更攻撃を防ぐ、完全性保証
       
-      # 修正: 署名をmainでのみ実行（公式アクション使用）
+      # ===============================================================
+      # Cosignインストール（コンテナ署名ツール）
+      # ===============================================================
       - name: Install Cosign
         uses: sigstore/cosign-installer@v3
+        # Cosign: Sigstore プロジェクトのコンテナ署名ツール
+        # Sigstore: CNCF配下のセキュリティプロジェクト
       
+      # ===============================================================
+      # コンテナイメージ署名
+      # ===============================================================
       - name: Sign container image
         run: cosign sign --yes ghcr.io/7lycka/sre-workflow@${{ steps.digest.outputs.digest }}
+        # @digest 指定: ダイジェストによる確実な対象指定
+        # --yes: 非対話モード（CI環境用）
+        # OIDC認証: GitHub ActionsのOIDCトークンで署名
       
-      # 推奨: SBOM再生成＋アテステーション添付
+      # ===============================================================
+      # 本番用SBOM生成（アテステーション用）
+      # ===============================================================
       - name: Generate SBOM for attestation
         run: |
           docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
             anchore/syft ghcr.io/7lycka/sre-workflow:${{ github.sha }} -o spdx-json > sbom.spdx.json
+        # 公開イメージからSBOM再生成
+        # 目的: 実際に公開されたイメージの正確なSBOM
       
+      # ===============================================================
+      # SBOMアテステーション（証明書添付）
+      # ===============================================================
       - name: Attest SBOM
         run: |
           cosign attest --yes \
             --predicate sbom.spdx.json --type spdx \
             ghcr.io/7lycka/sre-workflow@${{ steps.digest.outputs.digest }}
+        # attest: 証明書としてSBOMをイメージに添付
+        # predicate: 証明する内容（SBOM）
+        # type spdx: SPDX形式のSBOM
+        # 目的: 供給網の透明性と検証可能性
