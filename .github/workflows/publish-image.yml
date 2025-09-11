@@ -69,7 +69,7 @@ jobs:
           docker push ghcr.io/7lycka/sre-workflow:${{ github.sha }}
           
           # プッシュ後にダイジェストを確実に取得
-          digest=$(docker buildx imagetools inspect ghcr.io/7lycka/sre-workflow:${{ github.sha }} --format '{{.Manifest.Digest}}')
+          digest=$(docker buildx imagetools inspect ghcr.io/7lycka/sre-workflow:${{ github.sha }} | grep -E "Digest:\s+" | awk '{print $2}')
           echo "digest=$digest" >> $GITHUB_OUTPUT
           echo "Image digest: $digest"
         # sha タグ: コミットハッシュでバージョン管理
