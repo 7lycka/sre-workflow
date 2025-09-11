@@ -182,7 +182,7 @@ func TestLogMiddleware(t *testing.T) {
 // SREパフォーマンス要件：レスポンス時間の測定
 func BenchmarkHealthHandler(b *testing.B) {
 	req, _ := http.NewRequest("GET", "/health", nil)
-	
+
 	for i := 0; i < b.N; i++ {
 		rr := httptest.NewRecorder()
 		handler := http.HandlerFunc(healthHandler)
@@ -194,7 +194,7 @@ func BenchmarkHealthHandler(b *testing.B) {
 // SREパフォーマンス要件：監視エンドポイントの応答性能測定
 func BenchmarkMetricsHandler(b *testing.B) {
 	req, _ := http.NewRequest("GET", "/metrics", nil)
-	
+
 	for i := 0; i < b.N; i++ {
 		rr := httptest.NewRecorder()
 		handler := http.HandlerFunc(metricsHandler)

@@ -20,9 +20,9 @@ type HealthResponse struct {
 // MetricsResponse はメトリクス取得APIのレスポンス構造体
 // Prometheus形式での監視データ提供用
 type MetricsResponse struct {
-	RequestCount   int64   `json:"request_count"`   // 総リクエスト数
-	Uptime         float64 `json:"uptime_seconds"`  // サービス稼働時間（秒）
-	MemoryUsageMB  int64   `json:"memory_usage_mb"` // メモリ使用量（MB）
+	RequestCount  int64   `json:"request_count"`   // 総リクエスト数
+	Uptime        float64 `json:"uptime_seconds"`  // サービス稼働時間（秒）
+	MemoryUsageMB int64   `json:"memory_usage_mb"` // メモリ使用量（MB）
 }
 
 // グローバル変数でアプリケーション開始時刻とリクエストカウンターを管理
@@ -46,9 +46,9 @@ func healthHandler(w http.ResponseWriter, r *http.Request) {
 
 	// ヘルスチェックレスポンスを構築
 	health := HealthResponse{
-		Status:    "healthy",              // 常に健康状態を返す（本格実装では内部状態をチェック）
+		Status:    "healthy",                       // 常に健康状態を返す（本格実装では内部状態をチェック）
 		Timestamp: time.Now().Format(time.RFC3339), // RFC3339形式の現在時刻
-		Version:   version,                // アプリケーションバージョン
+		Version:   version,                         // アプリケーションバージョン
 	}
 
 	// JSONレスポンスヘッダーを設定
@@ -80,9 +80,9 @@ func metricsHandler(w http.ResponseWriter, r *http.Request) {
 
 	// メトリクスレスポンスを構築
 	metrics := MetricsResponse{
-		RequestCount:   requestCount,
-		Uptime:         uptime,
-		MemoryUsageMB:  memStats,
+		RequestCount:  requestCount,
+		Uptime:        uptime,
+		MemoryUsageMB: memStats,
 	}
 
 	// JSONレスポンスヘッダーを設定
@@ -134,16 +134,16 @@ func rootHandler(w http.ResponseWriter, r *http.Request) {
 func logMiddleware(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
-		
+
 		// リクエスト処理を実行
 		next(w, r)
-		
+
 		// 処理時間とリクエスト情報をログ出力
 		duration := time.Since(start)
-		log.Printf("%s %s %s - Duration: %v", 
-			r.Method, 
-			r.RequestURI, 
-			r.RemoteAddr, 
+		log.Printf("%s %s %s - Duration: %v",
+			r.Method,
+			r.RequestURI,
+			r.RemoteAddr,
 			duration)
 	}
 }
@@ -152,7 +152,7 @@ func main() {
 	// ポート番号を環境変数から取得（Cloud Run では PORT が自動設定される）
 	port := os.Getenv("PORT")
 	if port == "" {
-		port = "8080"  // Golangの一般的なデフォルトポート
+		port = "8080" // Golangの一般的なデフォルトポート
 	}
 
 	// アプリケーション開始ログ
