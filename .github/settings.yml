@@ -1,0 +1,14 @@
+# .github/settings.yml
+branches:
+  - name: main
+    protection:
+      required_status_checks:
+        strict: true
+        contexts:
+          - "CI"                                    # ci.yml
+          - "SBOM & Vulnerability Scan"             # security.yml 
+          - "Integration Tests"                     # integration.yml
+      enforce_admins: false
+      required_pull_request_reviews:
+        required_approving_review_count: 1
+        dismiss_stale_reviews: true

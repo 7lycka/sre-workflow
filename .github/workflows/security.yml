@@ -1,0 +1,48 @@
+name: Security Gate
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+  # 修正: PR段階では署名しないため id-token不要
+
+jobs:
+  sbom-scan:
+    name: SBOM & Vulnerability Scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      
+      # イメージビルド（PRなのでpushしない）
+      - name: Build image
+        run: docker build -t ghcr.io/7lycka/sre-workflow:pr-${{ github.sha }} .
+      
+      # SBOM生成
+      - name: Generate SBOM
+        run: |
+          docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
+            anchore/syft ghcr.io/7lycka/sre-workflow:pr-${{ github.sha }} -o spdx-json > sbom.spdx.json
+      
+      # 修正: 署名はPRでは行わない（mainで実行）
+      
+      # ファイルシステム脆弱性スキャン
+      - name: Trivy filesystem scan
+        run: |
+          docker run --rm -v "$PWD:/workspace" \
+            aquasec/trivy fs --severity HIGH,CRITICAL --exit-code 1 /workspace
+      
+      # イメージ脆弱性スキャン
+      - name: Trivy image scan
+        run: |
+          docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
+            aquasec/trivy image --severity HIGH,CRITICAL --exit-code 1 ghcr.io/7lycka/sre-workflow:pr-${{ github.sha }}
+      
+      - name: Upload SBOM
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom-pr-${{ github.sha }}
+          path: sbom.spdx.json

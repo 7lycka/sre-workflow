@@ -1,0 +1,96 @@
+name: Deploy to Dev
+on:
+  workflow_run:
+    workflows: ["Publish Image"]
+    types: [completed]
+    # 修正: ここでbranchesは無効
+
+permissions:
+  contents: read
+  id-token: write
+
+# 推奨: デプロイ衝突回避
+concurrency:
+  group: deploy-dev
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    name: Deploy to Cloud Run Dev
+    runs-on: ubuntu-latest
+    # 修正: 条件式でmain限定 + head_sha参照
+    if: |
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.head_branch == 'main'
+    
+    env:
+      # 修正: workflow_runのhead_shaを参照
+      IMAGE_REF: ghcr.io/7lycka/sre-workflow:${{ github.event.workflow_run.head_sha }}
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      # GCP OIDC認証
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
+          service_account: ${{ secrets.GCP_SA }}
+      
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+      
+      # 推奨: digest固定でデプロイ
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      
+      - name: Login to GHCR for digest resolution
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Resolve image digest
+        id: digest
+        run: |
+          digest=$(docker buildx imagetools inspect $IMAGE_REF | awk '/Digest: sha256/ {print $2; exit}')
+          echo "digest=$digest" >> $GITHUB_OUTPUT
+          echo "Resolved digest: $digest"
+      
+      # digest固定でデプロイ
+      - name: Deploy to Cloud Run
+        run: |
+          gcloud run deploy svc-dev \
+            --image=ghcr.io/7lycka/sre-workflow@${{ steps.digest.outputs.digest }} \
+            --region=asia-northeast1 \
+            --platform=managed \
+            --quiet
+      
+      - name: Get service URL
+        run: |
+          URL=$(gcloud run services describe svc-dev \
+            --region=asia-northeast1 \
+            --format='value(status.url)')
+          echo "SERVICE_URL=$URL" >> $GITHUB_ENV
+      
+      # スモークテスト + 自動ロールバック
+      - name: Smoke test with auto-rollback
+        run: |
+          echo "Testing health endpoint: $SERVICE_URL/health"
+          if ! curl -fsS "$SERVICE_URL/health"; then
+            echo "Health check failed! Rolling back..."
+            prev_revision=$(gcloud run services describe svc-dev \
+              --region=asia-northeast1 \
+              --format='value(status.traffic[1].revisionName)')
+            
+            if [ -n "$prev_revision" ]; then
+              gcloud run services update-traffic svc-dev \
+                --region=asia-northeast1 \
+                --to-revisions=${prev_revision}=100 \
+                --quiet
+              echo "Rolled back to revision: $prev_revision"
+            fi
+            exit 1
+          fi
+          echo "Health check passed!"
