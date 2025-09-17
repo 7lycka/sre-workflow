@@ -12,30 +12,30 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '18'
-          cache: 'npm'
-      
-      - name: Install dependencies
-        run: npm ci
-      
+
       - name: Build Docker image
         run: docker build -t sre-workflow-test .
-      
+
       - name: Run container
         run: |
-          docker run -d -p 3000:3000 --name test-container sre-workflow-test
-          sleep 5
-      
+          docker run -d -p 8080:8080 --name test-container sre-workflow-test
+          # Wait up to ~30s for service to become healthy
+          for i in {1..30}; do
+            if curl -fsS http://localhost:8080/health > /dev/null; then
+              echo "Service is up"
+              break
+            fi
+            echo "Waiting for service... ($i)"
+            sleep 1
+          done
+
       - name: Integration test
         run: |
-          curl -f http://localhost:3000/health
-          curl -f http://localhost:3000/
-          curl -f http://localhost:3000/api/status
-      
+          set -e
+          curl -f http://localhost:8080/health
+          curl -f http://localhost:8080/
+          curl -f http://localhost:8080/metrics
+
       - name: Cleanup
         if: always()
         run: docker rm -f test-container || true

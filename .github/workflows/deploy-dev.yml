@@ -34,7 +34,7 @@ jobs:
       - name: Check GCP credentials
         id: gcp-check
         run: |
-          if [[ -n "${{ secrets.GCP_WIF_PROVIDER }}" ]]; then
+          if [[ -n "${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}" ]]; then
             echo "gcp_configured=true" >> $GITHUB_OUTPUT
           else
             echo "gcp_configured=false" >> $GITHUB_OUTPUT
@@ -45,8 +45,8 @@ jobs:
         if: steps.gcp-check.outputs.gcp_configured == 'true'
         uses: google-github-actions/auth@v2
         with:
-          workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
-          service_account: ${{ secrets.GCP_SA }}
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
       
       - name: Set up Cloud SDK
         if: steps.gcp-check.outputs.gcp_configured == 'true'
@@ -115,4 +115,4 @@ jobs:
         if: steps.gcp-check.outputs.gcp_configured == 'false'
         run: |
           echo "::notice::GCP認証情報が設定されていないため、デプロイをスキップしました"
-          echo "本番環境でGCP_WIF_PROVIDERとGCP_SAシークレットを設定してください"
+          echo "本番環境でGCP_WORKLOAD_IDENTITY_PROVIDERとGCP_SERVICE_ACCOUNTシークレットを設定してください"
