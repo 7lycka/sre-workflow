@@ -24,8 +24,8 @@ jobs:
       github.event.workflow_run.head_branch == 'main'
     
     env:
-      # 修正: workflow_runのhead_shaを参照
-      IMAGE_REF: ghcr.io/7lycka/sre-workflow:${{ github.event.workflow_run.head_sha }}
+      # 修正: workflow_runのhead_shaを参照（GCRイメージを使用）
+      IMAGE_REF: gcr.io/${{ secrets.GCP_PROJECT_ID }}/sre-workflow:${{ github.event.workflow_run.head_sha }}
     
     steps:
       - uses: actions/checkout@v4
@@ -57,12 +57,8 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
       
-      - name: Login to GHCR for digest resolution
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Configure Docker for GCR
+        run: gcloud auth configure-docker --quiet
       
       - name: Resolve image digest
         id: digest
@@ -76,7 +72,7 @@ jobs:
         if: steps.gcp-check.outputs.gcp_configured == 'true'
         run: |
           gcloud run deploy svc-dev \
-            --image=ghcr.io/7lycka/sre-workflow@${{ steps.digest.outputs.digest }} \
+            --image=gcr.io/${{ secrets.GCP_PROJECT_ID }}/sre-workflow@${{ steps.digest.outputs.digest }} \
             --region=asia-northeast1 \
             --platform=managed \
             --quiet
