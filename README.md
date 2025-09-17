@@ -39,6 +39,15 @@ go vet ./...
 gofmt -l .
 ```
 
+## 技術スタック
+
+- **言語**: Golang 1.21+
+- **フレームワーク**: 標準ライブラリのみ
+- **コンテナ**: Docker (マルチステージビルド)
+- **デプロイ**: Google Cloud Run
+- **CI/CD**: GitHub Actions
+- **セキュリティ**: Trivy、Cosign、SBOM生成
+
 ## エンドポイント
 
 - `/health` - ヘルスチェック
