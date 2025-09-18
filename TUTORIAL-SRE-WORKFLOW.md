@@ -1,8 +1,8 @@
-# Golang製SREワークフロー完全実装ガイド
+# Golang製GCPワークフロー完全実装ガイド
 
 ## 概要
 
-このプロジェクトは、現代的なSRE（Site Reliability Engineering）の運用要件を満たすCI/CDワークフローを実装したものです。実際のプロダクション環境で活用できるレベルの構成で、以下の重要な要件を満たしています：
+このプロジェクトは、Google Cloud Platform（GCP）の運用要件を満たすCI/CDワークフローを実装したものです。実際のプロダクション環境で活用できるレベルの構成で、以下の重要な要件を満たしています：
 
 - **変更の安全性確保**: Branch Protection + Required Checks
 - **供給網セキュリティ**: SBOM生成 + 脆弱性スキャン + イメージ署名
@@ -45,7 +45,7 @@ sre-workflow/
 
 ### 1. Golang Webアプリケーション（main.go）
 
-標準ライブラリのみでWebサーバーを実装し、SREに必要なエンドポイントを提供：
+標準ライブラリのみでWebサーバーを実装し、GCP運用に必要なエンドポイントを提供：
 
 ```go
 package main
@@ -60,7 +60,7 @@ import (
 )
 
 // HealthResponse はヘルスチェックAPIのレスポンス構造体
-// SREワークフローでの監視・ロードバランサーからの生存確認に使用
+// GCPワークフローでの監視・ロードバランサーからの生存確認に使用
 type HealthResponse struct {
 	Status    string `json:"status"`    // サービス状態 ("healthy" など)
 	Timestamp string `json:"timestamp"` // 現在時刻（RFC3339形式）
@@ -83,7 +83,7 @@ var (
 
 // healthHandler はヘルスチェックエンドポイント
 // Kubernetes/Cloud Run のヘルスチェック、ロードバランサー監視で使用
-// SREの可観測性（Observability）要件を満たす重要なエンドポイント
+// GCP運用の可観測性（Observability）要件を満たす重要なエンドポイント
 func healthHandler(w http.ResponseWriter, r *http.Request) {
 	// リクエストカウンターをインクリメント（実装簡略化）
 	requestCount++
@@ -117,7 +117,7 @@ func healthHandler(w http.ResponseWriter, r *http.Request) {
 
 // metricsHandler はメトリクス取得エンドポイント
 // Prometheus監視システムやAPMツールでの性能監視に使用
-// SREのSLI/SLO監視に必要なメトリクス提供
+// GCP運用のSLI/SLO監視に必要なメトリクス提供
 func metricsHandler(w http.ResponseWriter, r *http.Request) {
 	requestCount++
 
@@ -158,12 +158,12 @@ func rootHandler(w http.ResponseWriter, r *http.Request) {
 	html := `<!DOCTYPE html>
 <html>
 <head>
-    <title>SRE Workflow Demo</title>
+    <title>GCP Workflow Demo</title>
     <meta charset="UTF-8">
 </head>
 <body>
-    <h1>SRE Workflow Demo Application</h1>
-    <p>Golang製のSREワークフロー検証用アプリケーションです。</p>
+    <h1>GCP Workflow Demo Application</h1>
+    <p>Golang製のGCPワークフロー検証用アプリケーションです。</p>
     <ul>
         <li><a href="/health">Health Check</a> - サービス生存確認</li>
         <li><a href="/metrics">Metrics</a> - 監視用メトリクス</li>
@@ -180,7 +180,7 @@ func rootHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 // logMiddleware はHTTPリクエストをログ出力するミドルウェア
-// SREの監視要件：すべてのリクエストをトレース可能にする
+// GCP運用の監視要件：すべてのリクエストをトレース可能にする
 func logMiddleware(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
@@ -206,7 +206,7 @@ func main() {
 	}
 
 	// アプリケーション開始ログ
-	log.Printf("Starting SRE Workflow Demo Server on port %s", port)
+	log.Printf("Starting GCP Workflow Demo Server on port %s", port)
 	log.Printf("Start time: %s", startTime.Format(time.RFC3339))
 
 	// HTTPルーティング設定
@@ -216,7 +216,7 @@ func main() {
 	http.HandleFunc("/metrics", logMiddleware(metricsHandler))
 
 	// HTTPサーバー設定
-	// 本格的なSREワークフローではタイムアウト設定が重要
+	// 本格的なGCPワークフローではタイムアウト設定が重要
 	server := &http.Server{
 		Addr:         ":" + port,
 		ReadTimeout:  15 * time.Second, // リクエスト読み取りタイムアウト
@@ -259,7 +259,7 @@ import (
 )
 
 // TestHealthHandler はヘルスチェックエンドポイントのテスト
-// SREワークフローの重要要素：ヘルスチェックの動作保証
+// GCPワークフローの重要要素：ヘルスチェックの動作保証
 func TestHealthHandler(t *testing.T) {
 	// テスト用のHTTPリクエスト作成
 	req, err := http.NewRequest("GET", "/health", nil)
@@ -309,7 +309,7 @@ func TestHealthHandler(t *testing.T) {
 }
 
 // TestMetricsHandler はメトリクスエンドポイントのテスト
-// SRE監視要件：メトリクス取得機能の動作保証
+// GCP監視要件：メトリクス取得機能の動作保証
 func TestMetricsHandler(t *testing.T) {
 	// 初期リクエストカウントを記録
 	initialCount := requestCount
@@ -381,8 +381,8 @@ func TestRootHandler(t *testing.T) {
 
 	// HTML内容確認
 	body := rr.Body.String()
-	if !strings.Contains(body, "SRE Workflow Demo") {
-		t.Error("Response should contain 'SRE Workflow Demo'")
+	if !strings.Contains(body, "GCP Workflow Demo") {
+		t.Error("Response should contain 'GCP Workflow Demo'")
 	}
 
 	if !strings.Contains(body, "/health") {
@@ -395,7 +395,7 @@ func TestRootHandler(t *testing.T) {
 }
 
 // TestLogMiddleware はログミドルウェアのテスト
-// SREのログ出力要件確認（ログ出力が正常に動作することを保証）
+// GCP運用のログ出力要件確認（ログ出力が正常に動作することを保証）
 func TestLogMiddleware(t *testing.T) {
 	// テスト用のハンドラー
 	testHandler := func(w http.ResponseWriter, r *http.Request) {
@@ -428,7 +428,7 @@ func TestLogMiddleware(t *testing.T) {
 }
 
 // BenchmarkHealthHandler はヘルスチェックエンドポイントのベンチマークテスト
-// SREパフォーマンス要件：レスポンス時間の測定
+// GCPパフォーマンス要件：レスポンス時間の測定
 func BenchmarkHealthHandler(b *testing.B) {
 	req, _ := http.NewRequest("GET", "/health", nil)
 
@@ -440,7 +440,7 @@ func BenchmarkHealthHandler(b *testing.B) {
 }
 
 // BenchmarkMetricsHandler はメトリクスエンドポイントのベンチマークテスト
-// SREパフォーマンス要件：監視エンドポイントの応答性能測定
+// GCPパフォーマンス要件：監視エンドポイントの応答性能測定
 func BenchmarkMetricsHandler(b *testing.B) {
 	req, _ := http.NewRequest("GET", "/metrics", nil)
 
@@ -526,7 +526,7 @@ CMD ["/app"]
 # =============================================================================
 # 目的: 基本的なコード品質保証とテスト実行
 # 実行タイミング: PR作成時 + mainブランチプッシュ時
-# SRE要件: 変更の安全性確保
+# GCP要件: 変更の安全性確保
 
 name: CI
 
@@ -815,7 +815,7 @@ OSなしの最小イメージで攻撃面を削減
 **静的バイナリ**:
 実行時依存関係ゼロで可搬性とセキュリティを向上
 
-### 3. SRE要件への対応
+### 3. GCP要件への対応
 
 **可観測性（Observability）**:
 - `/health` エンドポイントでヘルスチェック
@@ -834,7 +834,7 @@ OSなしの最小イメージで攻撃面を削減
 
 ## まとめ
 
-このプロジェクトは、現代的なSREの要件を満たす実用的なCI/CDワークフローの実装例です。Golangの特性を活かしたセキュアな実装と、GitHub Actionsによる自動化により、プロダクション環境で安心して使用できるシステムを構築しています。
+このプロジェクトは、現代的なGCP運用の要件を満たす実用的なCI/CDワークフローの実装例です。Golangの特性を活かしたセキュアな実装と、GitHub Actionsによる自動化により、プロダクション環境で安心して使用できるシステムを構築しています。
 
 特に重要なのは、単なる自動化ではなく、品質・セキュリティ・信頼性を担保する仕組みが組み込まれていることです。これにより、開発チームは安心してコード変更を行い、SREチームは運用負荷を削減できます。
 
