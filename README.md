@@ -52,4 +52,4 @@ gofmt -l .
 
 - `/health` - ヘルスチェック
 - `/metrics` - 監視用メトリクス
-- `/` - ルートページ
+- `/` - ルートページ# Test CI/CD fix
