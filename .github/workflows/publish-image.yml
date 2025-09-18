@@ -73,6 +73,7 @@ jobs:
           digest=$(docker buildx imagetools inspect ghcr.io/7lycka/sre-workflow:${{ github.sha }} | grep -E "Digest:\s+" | awk '{print $2}')
           echo "digest=$digest" >> $GITHUB_OUTPUT
           echo "GHCR Image digest: $digest"
+          echo "Build completed successfully"
         # sha タグ: コミットハッシュでバージョン管理
         # 不変性: 同じタグは常に同じ内容を保証
         # ダイジェスト: プッシュ後の確実な取得方法使用
