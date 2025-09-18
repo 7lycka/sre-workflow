@@ -5,9 +5,9 @@ branches:
       required_status_checks:
         strict: true
         contexts:
-          - "CI"                                    # ci.yml
-          - "SBOM & Vulnerability Scan"             # security.yml 
-          - "Integration Tests"                     # integration.yml
+          - "CI / Golang CI Pipeline"                         # ci.yml (workflow / job)
+          - "Security Gate / SBOM & Vulnerability Scan"       # security.yml (workflow / job)
+          - "Integration Tests / Integration Tests"           # integration.yml (workflow / job)
       enforce_admins: false
       required_pull_request_reviews:
         required_approving_review_count: 1

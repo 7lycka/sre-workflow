@@ -11,7 +11,7 @@
 ## プロジェクト構成
 
 ```
-sre-workflow/
+test-workflow/
 ├── .github/
 │   ├── workflows/           # GitHub Actions ワークフロー定義
 │   │   ├── ci.yml          # Golang CI (テスト、Lint、ビルド)
@@ -219,7 +219,7 @@ func main() {
 ### Go Modules設定 (`go.mod`)
 
 ```go
-module sre-workflow-demo
+module test-workflow-demo
 
 go 1.21
 
@@ -637,13 +637,13 @@ jobs:
       
       # Docker ビルド
       - name: Build Docker image
-        run: docker build -t ghcr.io/user/sre-workflow:test .
+        run: docker build -t ghcr.io/user/test-workflow:test .
       
       # SBOM 生成
       - name: Generate SBOM
         run: |
           docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
-            anchore/syft ghcr.io/user/sre-workflow:test -o spdx-json > sbom.spdx.json
+            anchore/syft ghcr.io/user/test-workflow:test -o spdx-json > sbom.spdx.json
       
       # ファイルシステム脆弱性スキャン
       - name: Run Trivy filesystem scan
@@ -656,7 +656,7 @@ jobs:
         run: |
           docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
             aquasec/trivy image --severity HIGH,CRITICAL --exit-code 1 \
-            ghcr.io/user/sre-workflow:test
+            ghcr.io/user/test-workflow:test
 ```
 
 ### イメージ公開ワークフロー (`.github/workflows/publish-image.yml`)
@@ -694,11 +694,11 @@ jobs:
       
       - name: Build and push image
         run: |
-          docker build -t ghcr.io/user/sre-workflow:${{ github.sha }} .
-          docker push ghcr.io/user/sre-workflow:${{ github.sha }}
+          docker build -t ghcr.io/user/test-workflow:${{ github.sha }} .
+          docker push ghcr.io/user/test-workflow:${{ github.sha }}
           
           # ダイジェスト取得
-          digest=$(docker buildx imagetools inspect ghcr.io/user/sre-workflow:${{ github.sha }} | grep -E "Digest:\s+" | awk '{print $2}')
+          digest=$(docker buildx imagetools inspect ghcr.io/user/test-workflow:${{ github.sha }} | grep -E "Digest:\s+" | awk '{print $2}')
           echo "digest=$digest" >> $GITHUB_OUTPUT
           echo "Image digest: $digest"
       
@@ -706,18 +706,18 @@ jobs:
         uses: sigstore/cosign-installer@v3
       
       - name: Sign container image
-        run: cosign sign --yes ghcr.io/user/sre-workflow@${{ steps.build.outputs.digest }}
+        run: cosign sign --yes ghcr.io/user/test-workflow@${{ steps.build.outputs.digest }}
       
       - name: Generate SBOM for attestation
         run: |
           docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
-            anchore/syft ghcr.io/user/sre-workflow:${{ github.sha }} -o spdx-json > sbom.spdx.json
+            anchore/syft ghcr.io/user/test-workflow:${{ github.sha }} -o spdx-json > sbom.spdx.json
       
       - name: Attest SBOM
         run: |
           cosign attest --yes \
             --predicate sbom.spdx.json --type spdx \
-            ghcr.io/user/sre-workflow@${{ steps.build.outputs.digest }}
+            ghcr.io/user/test-workflow@${{ steps.build.outputs.digest }}
 ```
 
 ### 自動デプロイワークフロー (`.github/workflows/deploy-dev.yml`)
@@ -748,7 +748,7 @@ jobs:
       github.event.workflow_run.head_branch == 'main'
     
     env:
-      IMAGE_REF: ghcr.io/user/sre-workflow:${{ github.event.workflow_run.head_sha }}
+      IMAGE_REF: ghcr.io/user/test-workflow:${{ github.event.workflow_run.head_sha }}
     
     steps:
       - uses: actions/checkout@v4
@@ -797,7 +797,7 @@ jobs:
         if: steps.gcp-check.outputs.gcp_configured == 'true'
         run: |
           gcloud run deploy svc-dev \
-            --image=ghcr.io/user/sre-workflow@${{ steps.digest.outputs.digest }} \
+            --image=ghcr.io/user/test-workflow@${{ steps.digest.outputs.digest }} \
             --region=asia-northeast1 \
             --platform=managed \
             --quiet

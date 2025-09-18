@@ -56,16 +56,6 @@ jobs:
           username: ${{ github.actor }}               # 実行者のGitHubユーザー名
           password: ${{ secrets.GITHUB_TOKEN }}       # 自動生成トークン
 
-      # GCP認証（GCR用）
-      - name: Authenticate to Google Cloud
-        uses: google-github-actions/auth@v2
-        with:
-          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
-          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
-          project_id: ${{ secrets.GCP_PROJECT_ID }}
-
-      - name: Configure Docker for GCR
-        run: gcloud auth configure-docker --quiet
       
       # ===============================================================
       # イメージビルド・プッシュ（ダイジェスト取得統合）
@@ -73,18 +63,16 @@ jobs:
       - name: Build and push image
         id: build
         run: |
-          # イメージビルド（GHCR + GCR両方のタグ）
-          docker build -t ghcr.io/7lycka/sre-workflow:${{ github.sha }} \
-                      -t gcr.io/${{ secrets.GCP_PROJECT_ID }}/sre-workflow:${{ github.sha }} .
+          # イメージビルド（GHCR専用）
+          docker build -t ghcr.io/7lycka/sre-workflow:${{ github.sha }} .
 
-          # 両方のレジストリにプッシュ
+          # GHCRにプッシュ
           docker push ghcr.io/7lycka/sre-workflow:${{ github.sha }}
-          docker push gcr.io/${{ secrets.GCP_PROJECT_ID }}/sre-workflow:${{ github.sha }}
 
-          # GCRイメージのダイジェスト取得（Cloud Run用）
-          digest=$(docker buildx imagetools inspect gcr.io/${{ secrets.GCP_PROJECT_ID }}/sre-workflow:${{ github.sha }} | grep -E "Digest:\s+" | awk '{print $2}')
+          # GHCRイメージのダイジェスト取得
+          digest=$(docker buildx imagetools inspect ghcr.io/7lycka/sre-workflow:${{ github.sha }} | grep -E "Digest:\s+" | awk '{print $2}')
           echo "digest=$digest" >> $GITHUB_OUTPUT
-          echo "GCR Image digest: $digest"
+          echo "GHCR Image digest: $digest"
         # sha タグ: コミットハッシュでバージョン管理
         # 不変性: 同じタグは常に同じ内容を保証
         # ダイジェスト: プッシュ後の確実な取得方法使用

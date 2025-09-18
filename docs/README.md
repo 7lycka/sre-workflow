@@ -20,27 +20,24 @@
 ## ファイル構成
 
 ```
-sre-workflow/
+test-workflow/
 ├── .github/
 │   ├── workflows/           # GitHub Actions ワークフロー定義
-│   │   ├── ci.yml          # 基本的な CI (テスト、Lint)
-│   │   ├── security.yml    # セキュリティゲート (SBOM + 脆弱性)
-│   │   ├── publish-image.yml # イメージ公開 + 署名
-│   │   ├── deploy-dev.yml  # 自動デプロイ + ロールバック
-│   │   └── integration.yml # 統合テスト
+│   │   ├── ci.yml             # GoのCI (fmt/vet/test/build)
+│   │   ├── security.yml       # セキュリティゲート (SBOM + 脆弱性)
+│   │   ├── publish-image.yml  # イメージ公開 + 署名 + SBOMアテステーション
+│   │   ├── deploy-dev.yml     # 自動デプロイ + ロールバック (Cloud Run)
+│   │   └── integration.yml    # 統合テスト (Docker + 8080)
 │   └── settings.yml        # ブランチ保護設定
 ├── docs/                   # ドキュメント
 │   ├── README.md          # このファイル（完全解説）
 │   ├── github-actions-guide.md # GitHub Actions 構文解説
 │   └── workflow-details.md    # ワークフロー詳細解説
-├── Dockerfile             # コンテナイメージ定義
-├── package.json           # Node.js 依存関係
-├── package-lock.json      # 依存関係固定ファイル
-├── server.js             # Express アプリケーション
-├── server.test.js        # テストコード
-├── jest.config.js        # テスト設定
-├── .eslintrc.js         # コード品質設定
-└── README.md            # プロジェクト概要
+├── Dockerfile              # コンテナイメージ定義（Go静的バイナリ + scratch）
+├── go.mod                  # Goモジュール定義
+├── main.go                 # HTTPサーバ（/ /health /metrics）
+├── main_test.go            # ハンドラのユニットテスト
+└── README.md               # プロジェクト概要
 ```
 
 ## GitHub Actions 基礎知識
@@ -90,10 +87,10 @@ jobs:                        # 実行するジョブ
 ## ワークフロー詳細解説
 
 ### 1. CI ワークフロー (`ci.yml`)
-**目的**: 基本的なコード品質チェック
+**目的**: Goコード品質とテストの最低限ゲート
 
 ```yaml
-# トリガー: PR作成時 + mainプッシュ時
+# トリガー: PR作成 + mainプッシュ
 on:
   pull_request:
     branches: [main]
@@ -101,10 +98,12 @@ on:
     branches: [main]
 
 # 実行内容:
-# 1. Node.js セットアップ
-# 2. 依存関係インストール
-# 3. Lint実行 (コード品質)
-# 4. テスト実行
+- Setup Go (actions/setup-go)
+- go mod download
+- gofmt チェック（スタイル）
+- go vet（静的解析）
+- go test -race -cover（テスト + レース検出 + カバレッジ）
+- go build（ビルド可能性の確認）
 ```
 
 ### 2. セキュリティゲート (`security.yml`)
@@ -152,8 +151,8 @@ on:
 
 # 実行内容:
 # 1. 成功確認（失敗時はスキップ）
-# 2. ダイジェスト固定でデプロイ
-# 3. ヘルスチェック実行
+# 2. ダイジェスト固定でCloud Runにデプロイ
+# 3. ヘルスチェック（/health）実行
 # 4. 失敗時は前リビジョンにロールバック
 ```
 
@@ -161,12 +160,12 @@ on:
 
 ### 1. 変更の安全性
 ```yaml
-# .github/settings.yml
+# .github/settings.yml（実ジョブ名に合わせる）
 required_status_checks:
   contexts:
-    - "CI"                          # テスト必須
-    - "SBOM & Vulnerability Scan"   # セキュリティ必須
-    - "Integration Tests"           # 統合テスト必須
+    - "CI / Golang CI Pipeline"                       # ci.yml
+    - "Security Gate / SBOM & Vulnerability Scan"     # security.yml
+    - "Integration Tests / Integration Tests"         # integration.yml
 ```
 → **全チェック通過後のみマージ可能**
 
@@ -197,6 +196,8 @@ required_status_checks:
 - PRでの署名 → mainでのみ署名（権限・レジストリ制約対応）
 - SHA参照ミス → head_sha参照（正しいコミット特定）
 - ブランチ条件 → if条件制御（workflow_run制約対応）」
+
+補足: 統合テストはDockerでコンテナを起動し、ポート`8080`で`/health` `/` `/metrics`を検証します。
 
 ## メトリクス
 
