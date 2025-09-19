@@ -54,3 +54,4 @@ gofmt -l .
 - `/metrics` - 監視用メトリクス
 - `/` - ルートページ# Test CI/CD fix
 # Trigger CI/CD after making repo public again
+# Force CI/CD workflow trigger 2025年  9月 19日 金曜日 16:35:06 JST
