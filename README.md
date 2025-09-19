@@ -55,3 +55,4 @@ gofmt -l .
 - `/` - ルートページ# Test CI/CD fix
 # Trigger CI/CD after making repo public again
 # Force CI/CD workflow trigger 2025年  9月 19日 金曜日 16:35:06 JST
+# Test fixed OIDC authentication 2025年  9月 19日 金曜日 17:41:24 JST
