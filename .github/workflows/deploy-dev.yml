@@ -76,9 +76,11 @@ jobs:
         if: steps.gcp-check.outputs.gcp_configured == 'true'
         run: |
           gcloud run deploy svc-dev \
-            --image=ghcr.io/7lycka/sre-workflow@${{ steps.digest.outputs.digest }} \
+            --image=gcr.io/${{ secrets.GCP_PROJECT_ID }}/sre-workflow:${{ github.event.workflow_run.head_sha }} \
             --region=asia-northeast1 \
             --platform=managed \
+            --allow-unauthenticated \
+            --port=8080 \
             --quiet
       
       - name: Get service URL

@@ -1,98 +1,151 @@
 # =============================================================================
-# セキュリティゲートワークフロー
+# セキュリティゲートワークフロー - プルリクエスト時のセキュリティチェック
 # =============================================================================
-# 目的: PRマージ前に脆弱性を検出・ブロックする
-# 実行タイミング: PR作成・更新時
-# SRE要件: 供給網セキュリティの確保
+# 【概要】
+# このワークフローはプルリクエスト作成時に実行され、以下のセキュリティチェックを行います：
+# 1. SBOM（ソフトウェア部品表）生成 - 使用ライブラリの透明性確保
+# 2. ソースコード脆弱性スキャン - 既知の脆弱性を早期発見
+# 3. コンテナイメージ脆弱性スキャン - ランタイム環境の安全性確保
+#
+# 【実行条件】
+# - mainブランチ向けプルリクエスト作成・更新時
+# - 脆弱性検出時はPRマージをブロック（必須チェック）
+#
+# 【セキュリティ原則】
+# - 最小権限の原則に従い、必要最小限の権限のみ付与
+# - イメージ署名はPR段階では実行せず、mainマージ後の本番用ビルドでのみ実行
+# =============================================================================
+
 name: Security Gate
 
 # =============================================================================
-# トリガー設定: PRによる実行
+# トリガー設定 - プルリクエスト時のみ実行
 # =============================================================================
 on:
   pull_request:
-    branches: [main]    # mainブランチ向けPRのみ対象
+    branches: [main]    # mainブランチ向けPRのみ対象（開発ブランチは対象外）
 
 # =============================================================================
-# 権限設定: セキュリティ原則に基づく最小権限
+# 権限設定 - セキュリティ原則に基づく最小権限
 # =============================================================================
 permissions:
-  contents: read        # リポジトリコードの読み取りのみ
-  # 注意: PR段階では署名不要のため id-token: write は不要
-  # 署名はmainブランチでのみ実行（publish-image.yml）
+  contents: read        # リポジトリコードの読み取りのみ許可
+  # 注意: PR段階ではコンテナ署名を行わないため id-token: write は不要
+  # コンテナ署名は mainブランチマージ後の publish-image.yml でのみ実行
 
 # =============================================================================
-# ジョブ定義: SBOM生成と脆弱性スキャン
+# セキュリティスキャンジョブ - SBOM生成と脆弱性検出
 # =============================================================================
 jobs:
-  sbom-scan:
-    name: SBOM & Vulnerability Scan    # 画面表示名
-    runs-on: ubuntu-latest              # 実行環境
+  security-scan:
+    name: Security Scan & SBOM Generation
+    runs-on: ubuntu-latest
     
     steps:
       # ===============================================================
-      # ソースコード取得
+      # ステップ1: ソースコード取得
       # ===============================================================
-      - uses: actions/checkout@v4
-      
+      - name: Checkout source code
+        uses: actions/checkout@v4
+        # プルリクエストのソースコードを取得
+        # セキュリティスキャンの対象となるコードベース
+
       # ===============================================================
-      # Docker環境セットアップ
+      # ステップ2: Docker Buildx環境セットアップ
       # ===============================================================
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
-        # Buildx: 高度なDockerビルド機能を有効化
-      
+        # Docker Buildx: マルチプラットフォーム対応の高度なビルド機能
+        # 複雑なDockerfileのビルドとキャッシュ最適化に必要
+
       # ===============================================================
-      # Dockerイメージビルド（ローカルのみ、レジストリpushなし）
+      # ステップ3: テスト用Dockerイメージビルド（ローカルのみ）
       # ===============================================================
-      - name: Build image
-        run: docker build -t ghcr.io/7lycka/sre-workflow:pr-${{ github.sha }} .
-        # PR用一時イメージ作成
-        # sha: コミットハッシュでユニークなタグ付け
-      
-      # ===============================================================
-      # SBOM（Software Bill of Materials）生成
-      # ===============================================================
-      - name: Generate SBOM
+      - name: Build container image for security scanning
         run: |
+          docker build -t ghcr.io/7lycka/sre-workflow:pr-${{ github.sha }} .
+          echo "Built image: ghcr.io/7lycka/sre-workflow:pr-${{ github.sha }}"
+        # 【重要】このイメージはレジストリにPUSHしない（ローカルビルドのみ）
+        # PR段階では一時的なテスト用イメージとして使用
+        # タグにコミットハッシュを使用してユニーク性を確保
+
+      # ===============================================================
+      # ステップ4: SBOM（ソフトウェア部品表）生成
+      # ===============================================================
+      - name: Generate Software Bill of Materials (SBOM)
+        run: |
+          echo "Generating SBOM with Syft..."
           docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
             anchore/syft ghcr.io/7lycka/sre-workflow:pr-${{ github.sha }} -o spdx-json > sbom.spdx.json
-        # Syft: Anchore社のSBOM生成ツール
-        # SPDX形式: 業界標準のSBOMフォーマット
-        # 目的: 使用ライブラリの透明性確保
-      
-      # 重要: 署名はPRでは実行しない
-      # 理由: レジストリにpushしていないため、署名対象が存在しない
-      
+          echo "SBOM generated successfully"
+          echo "SBOM file size: $(du -h sbom.spdx.json | cut -f1)"
+        # Syft: Anchore社製のオープンソースSBOM生成ツール
+        # SPDX-JSON: Software Package Data Exchange形式（業界標準）
+        # 目的: 使用している全ライブラリとその依存関係の透明性確保
+        # コンプライアンス要件やサプライチェーン攻撃対策に必須
+
       # ===============================================================
-      # ファイルシステム脆弱性スキャン
+      # ステップ5: ソースコードの脆弱性スキャン
       # ===============================================================
-      - name: Trivy filesystem scan
+      - name: Scan source code for vulnerabilities
         run: |
+          echo "Scanning source code with Trivy..."
           docker run --rm -v "$PWD:/workspace" \
             aquasec/trivy fs --severity HIGH,CRITICAL --exit-code 1 /workspace
-        # Trivy: オープンソース脆弱性スキャナー
-        # fs: ファイルシステムモード（ソースコード解析）
-        # HIGH,CRITICAL: 深刻度フィルタ
-        # exit-code 1: 脆弱性発見時にジョブ失敗
-      
+          echo "Source code scan completed - no HIGH/CRITICAL vulnerabilities found"
+        # Trivy filesystem mode: ソースコード内の既知脆弱性を検出
+        # 対象: go.mod、package.json、Dockerfile等の依存関係定義ファイル
+        # HIGH/CRITICAL: 重大度フィルタ（中程度以下は警告のみ）
+        # exit-code 1: 脆弱性発見時はジョブを失敗させてPRマージをブロック
+
       # ===============================================================
-      # コンテナイメージ脆弱性スキャン
+      # ステップ6: コンテナイメージの脆弱性スキャン
       # ===============================================================
-      - name: Trivy image scan
+      - name: Scan container image for vulnerabilities
         run: |
+          echo "Scanning container image with Trivy..."
           docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
             aquasec/trivy image --severity HIGH,CRITICAL --exit-code 1 ghcr.io/7lycka/sre-workflow:pr-${{ github.sha }}
-        # image: コンテナイメージ解析モード
-        # Docker socket: ローカルイメージへのアクセス
-        # 目的: ランタイム依存関係の脆弱性検出
-      
+          echo "Container image scan completed - no HIGH/CRITICAL vulnerabilities found"
+        # Trivy image mode: コンテナイメージ内のランタイム脆弱性を検出
+        # 対象: OS パッケージ、言語固有ライブラリ、設定ファイル
+        # Docker socket マウント: ローカルイメージへのアクセスに必要
+        # 本番環境で実際に動作するイメージの安全性を保証
+
       # ===============================================================
-      # SBOM アーティファクト保存
+      # ステップ7: セキュリティスキャン結果レポート生成
       # ===============================================================
-      - name: Upload SBOM
+      - name: Generate security scan report
+        if: always()  # 前のステップが失敗しても実行
+        run: |
+          echo "Generating comprehensive security report..."
+
+          # 詳細なスキャン結果をファイルに出力（失敗時のデバッグ用）
+          docker run --rm -v "$PWD:/workspace" \
+            aquasec/trivy fs --format json --output /workspace/trivy-fs-report.json /workspace || true
+
+          docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
+            -v "$PWD:/workspace" aquasec/trivy image --format json \
+            --output /workspace/trivy-image-report.json ghcr.io/7lycka/sre-workflow:pr-${{ github.sha }} || true
+
+          echo "Security reports generated"
+          ls -la *report.json sbom.spdx.json 2>/dev/null || echo "No report files found"
+
+      # ===============================================================
+      # ステップ8: セキュリティアーティファクト保存
+      # ===============================================================
+      - name: Upload security artifacts
         uses: actions/upload-artifact@v4
+        if: always()  # スキャンが失敗した場合でもアーティファクトを保存
         with:
-          name: sbom-pr-${{ github.sha }}    # アーティファクト名（コミット固有）
-          path: sbom.spdx.json               # アップロードファイル
-        # 目的: PR レビュー時のSBOM確認用
+          name: security-artifacts-pr-${{ github.sha }}
+          path: |
+            sbom.spdx.json
+            trivy-fs-report.json
+            trivy-image-report.json
+          retention-days: 30
+        # アーティファクトの用途:
+        # 1. PRレビュー時のSBOM確認
+        # 2. セキュリティ監査のエビデンス
+        # 3. 脆弱性修正時の参考資料
+        # 4. コンプライアンス報告書作成
