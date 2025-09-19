@@ -53,3 +53,4 @@ gofmt -l .
 - `/health` - ヘルスチェック
 - `/metrics` - 監視用メトリクス
 - `/` - ルートページ# Test CI/CD fix
+# Trigger CI/CD after making repo public again
